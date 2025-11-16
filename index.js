@@ -28,7 +28,8 @@ const client = new MongoClient(uri, {
 let db;
 let usersCollection;
 let paymentsCollection;
-let atsScoresCollection; // Add this line
+let atsScoresCollection;
+let interviewsCollection; // Add interviews collection
 
 async function run() {
   try {
@@ -36,7 +37,8 @@ async function run() {
     db = client.db(process.env.DB_NAME || "career_connect");
     usersCollection = db.collection("users");
     paymentsCollection = db.collection("payments");
-    atsScoresCollection = db.collection("ats_scores"); // Add this line
+    atsScoresCollection = db.collection("ats_scores");
+    interviewsCollection = db.collection("interviews"); // Initialize interviews collection
     
     await client.db("admin").command({ ping: 1 });
     console.log("✅ Successfully connected to MongoDB!");
@@ -59,9 +61,13 @@ function initializeRoutes() {
   const paymentRoutes = require('./routes/payments')(usersCollection, paymentsCollection);
   app.use('/api/payments', paymentRoutes);
 
-  // ATS Score Routes - Add this
+  // ATS Score Routes
   const atsScoreRoutes = require('./routes/atsScore')(atsScoresCollection);
   app.use('/api/ats', atsScoreRoutes);
+
+  // Interview Routes - Add this
+  const interviewRoutes = require('./routes/interviews')(interviewsCollection);
+  app.use('/api/interviews', interviewRoutes);
 
   console.log("✅ Routes initialized successfully!");
 }
