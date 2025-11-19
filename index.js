@@ -29,7 +29,8 @@ let db;
 let usersCollection;
 let paymentsCollection;
 let atsScoresCollection;
-let interviewsCollection; // Add interviews collection
+let interviewsCollection;
+let postsCollection;
 
 async function run() {
   try {
@@ -38,14 +39,15 @@ async function run() {
     usersCollection = db.collection("users");
     paymentsCollection = db.collection("payments");
     atsScoresCollection = db.collection("ats_scores");
-    interviewsCollection = db.collection("interviews"); // Initialize interviews collection
-    
+    interviewsCollection = db.collection("interviews");
+    postsCollection = db.collection("posts");
+
     await client.db("admin").command({ ping: 1 });
     console.log("✅ Successfully connected to MongoDB!");
-    
+
     // Initialize routes after successful connection
     initializeRoutes();
-    
+
   } catch (err) {
     console.error("❌ MongoDB connection failed:", err);
     process.exit(1);
@@ -69,12 +71,15 @@ function initializeRoutes() {
   const interviewRoutes = require('./routes/interviews')(interviewsCollection);
   app.use('/api/interviews', interviewRoutes);
 
+  const postRoutes = require('./routes/posts')(postsCollection);
+  app.use('/api/posts', postRoutes);
+
   console.log("✅ Routes initialized successfully!");
 }
 
 // Root route
 app.get("/", (req, res) => {
-  res.json({ 
+  res.json({
     message: "Career Connect AI Server is running!",
     timestamp: new Date().toISOString()
   });
@@ -85,16 +90,16 @@ app.get("/health", async (req, res) => {
   try {
     // Check database connection
     await client.db("admin").command({ ping: 1 });
-    res.json({ 
-      status: "OK", 
+    res.json({
+      status: "OK",
       database: "Connected",
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    res.status(500).json({ 
-      status: "Error", 
+    res.status(500).json({
+      status: "Error",
       database: "Disconnected",
-      error: error.message 
+      error: error.message
     });
   }
 });
@@ -104,7 +109,7 @@ app.listen(port, () => {
   console.log(`🚀 Server running on port ${port}`);
   console.log(`📱 API available at http://localhost:${port}`);
   console.log("⏳ Connecting to MongoDB...");
-  
+
   // Initialize database connection
   run().catch(console.dir);
 });
