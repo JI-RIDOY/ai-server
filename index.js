@@ -31,6 +31,8 @@ let paymentsCollection;
 let atsScoresCollection;
 let interviewsCollection;
 let postsCollection;
+let jobsCollection;
+let applicationsCollection;
 
 async function run() {
   try {
@@ -41,6 +43,8 @@ async function run() {
     atsScoresCollection = db.collection("ats_scores");
     interviewsCollection = db.collection("interviews");
     postsCollection = db.collection("posts");
+    jobsCollection = db.collection("jobs");
+    applicationsCollection = db.collection("applications");
 
     await client.db("admin").command({ ping: 1 });
     console.log("✅ Successfully connected to MongoDB!");
@@ -73,6 +77,9 @@ function initializeRoutes() {
 
   const postRoutes = require('./routes/posts')(postsCollection);
   app.use('/api/posts', postRoutes);
+
+  const jobRoutes = require('./routes/jobs')(jobsCollection, applicationsCollection, usersCollection);
+  app.use('/api/jobs', jobRoutes);
 
   console.log("✅ Routes initialized successfully!");
 }

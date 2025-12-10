@@ -54,6 +54,7 @@ module.exports = (usersCollection) => {
                 // Create new user with default package
                 const newUser = {
                     ...userData,
+                    userType: userData.userType || 'jobSeeker', // Default to jobSeeker
                     package: 'basic', // Default package
                     createdAt: new Date(),
                     updatedAt: new Date()
@@ -193,38 +194,26 @@ module.exports = (usersCollection) => {
         }
     });
 
-    // In your backend user routes (routes/users.js)
-    router.put('/:uid', async (req, res) => {
+    // Check if user is recruiter
+    router.get('/:uid/is-recruiter', async (req, res) => {
         try {
             const { uid } = req.params;
-            const updateData = req.body;
 
-            const result = await usersCollection.updateOne(
-                { uid },
-                {
-                    $set: {
-                        ...updateData,
-                        updatedAt: new Date()
-                    }
-                }
-            );
+            const user = await usersCollection.findOne({ uid });
 
-            if (result.matchedCount === 0) {
+            if (!user) {
                 return res.status(404).json({
                     success: false,
                     message: 'User not found'
                 });
             }
 
-            const updatedUser = await usersCollection.findOne({ uid });
-
             res.json({
                 success: true,
-                message: 'User updated successfully',
-                user: updatedUser
+                isRecruiter: user.userType === 'recruiter'
             });
         } catch (error) {
-            console.error('Error updating user:', error);
+            console.error('Error checking user type:', error);
             res.status(500).json({
                 success: false,
                 message: 'Internal server error',
