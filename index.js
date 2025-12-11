@@ -87,7 +87,7 @@ function initializeRoutes() {
 // Root route
 app.get("/", (req, res) => {
   res.json({
-    message: "Career Connect AI Server is running!",
+    message: "Creative Career AI Server is running!",
     timestamp: new Date().toISOString()
   });
 });
