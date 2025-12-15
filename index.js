@@ -27,6 +27,7 @@ const client = new MongoClient(uri, {
 // Database collections
 let db;
 let usersCollection;
+let connectionsCollection;
 let paymentsCollection;
 let atsScoresCollection;
 let interviewsCollection;
@@ -39,6 +40,7 @@ async function run() {
     await client.connect();
     db = client.db(process.env.DB_NAME || "career_connect");
     usersCollection = db.collection("users");
+    connectionsCollection = db.collection("connections");
     paymentsCollection = db.collection("payments");
     atsScoresCollection = db.collection("ats_scores");
     interviewsCollection = db.collection("interviews");
@@ -62,6 +64,10 @@ function initializeRoutes() {
   // User Routes
   const userRoutes = require('./routes/users')(usersCollection);
   app.use('/api/users', userRoutes);
+
+   // Connections Routes
+  const connectionRoutes = require('./routes/connections')(usersCollection, connectionsCollection);
+  app.use('/api/connections', connectionRoutes);
 
   // Payment Routes
   const paymentRoutes = require('./routes/payments')(usersCollection, paymentsCollection);
