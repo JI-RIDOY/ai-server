@@ -1,12 +1,11 @@
-// routes/connections.js
 const express = require('express');
 const router = express.Router();
 const { ObjectId } = require('mongodb');
 
-module.exports = (usersCollection, connectionsCollection) => {
+module.exports = (usersCollection, connectionsCollection, notificationsCollection) => {
   // Check if collections are available
   router.use((req, res, next) => {
-    if (!connectionsCollection || !usersCollection) {
+    if (!connectionsCollection || !usersCollection || !notificationsCollection) {
       return res.status(503).json({
         success: false,
         message: 'Database not initialized. Please try again later.'
@@ -70,6 +69,23 @@ module.exports = (usersCollection, connectionsCollection) => {
 
       const result = await connectionsCollection.insertOne(connectionRequest);
 
+      // Create notification for receiver
+      const notification = {
+        userId: receiverId,
+        type: 'connection_request',
+        title: 'New Connection Request',
+        message: `${sender.displayName || 'Someone'} wants to connect with you`,
+        senderId,
+        senderName: sender.displayName,
+        senderPhotoURL: sender.photoURL,
+        targetId: result.insertedId.toString(),
+        targetType: 'connection',
+        read: false,
+        createdAt: new Date()
+      };
+
+      await notificationsCollection.insertOne(notification);
+
       res.status(201).json({
         success: true,
         message: 'Connection request sent successfully',
@@ -110,6 +126,12 @@ module.exports = (usersCollection, connectionsCollection) => {
         });
       }
 
+      // Get user details
+      const [sender, receiver] = await Promise.all([
+        usersCollection.findOne({ uid: request.senderId }),
+        usersCollection.findOne({ uid: request.receiverId })
+      ]);
+
       // Update connection status
       const result = await connectionsCollection.updateOne(
         { _id: new ObjectId(requestId) },
@@ -128,6 +150,23 @@ module.exports = (usersCollection, connectionsCollection) => {
           message: 'Failed to accept connection request'
         });
       }
+
+      // Create notification for original sender
+      const notification = {
+        userId: request.senderId,
+        type: 'connection_accepted',
+        title: 'Connection Request Accepted',
+        message: `${receiver?.displayName || 'Someone'} accepted your connection request`,
+        senderId: request.receiverId,
+        senderName: receiver?.displayName,
+        senderPhotoURL: receiver?.photoURL,
+        targetId: requestId,
+        targetType: 'connection',
+        read: false,
+        createdAt: new Date()
+      };
+
+      await notificationsCollection.insertOne(notification);
 
       const updatedConnection = await connectionsCollection.findOne({ 
         _id: new ObjectId(requestId)
@@ -160,6 +199,21 @@ module.exports = (usersCollection, connectionsCollection) => {
         });
       }
 
+      const request = await connectionsCollection.findOne({ 
+        _id: new ObjectId(requestId),
+        status: 'pending'
+      });
+
+      if (!request) {
+        return res.status(404).json({
+          success: false,
+          message: 'Connection request not found or already processed'
+        });
+      }
+
+      // Get receiver details
+      const receiver = await usersCollection.findOne({ uid: request.receiverId });
+
       const result = await connectionsCollection.updateOne(
         { 
           _id: new ObjectId(requestId),
@@ -180,6 +234,23 @@ module.exports = (usersCollection, connectionsCollection) => {
           message: 'Connection request not found or already processed'
         });
       }
+
+      // Create notification for sender
+      const notification = {
+        userId: request.senderId,
+        type: 'connection_rejected',
+        title: 'Connection Request Rejected',
+        message: `${receiver?.displayName || 'Someone'} rejected your connection request`,
+        senderId: request.receiverId,
+        senderName: receiver?.displayName,
+        senderPhotoURL: receiver?.photoURL,
+        targetId: requestId,
+        targetType: 'connection',
+        read: false,
+        createdAt: new Date()
+      };
+
+      await notificationsCollection.insertOne(notification);
 
       res.json({
         success: true,

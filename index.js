@@ -1,4 +1,3 @@
-// server.js (update the existing file)
 const express = require("express");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
@@ -41,6 +40,7 @@ let db;
 let usersCollection;
 let connectionsCollection;
 let messagesCollection;
+let notificationsCollection;
 let paymentsCollection;
 let atsScoresCollection;
 let interviewsCollection;
@@ -51,11 +51,20 @@ let applicationsCollection;
 // Socket.io connection handling
 const onlineUsers = new Map(); // Map to track online users: userId -> socketId
 
+// Helper function to get unread count
+async function getUnreadCount(userId) {
+  const count = await notificationsCollection.countDocuments({
+    userId,
+    read: false
+  });
+  return count;
+}
+
 io.on('connection', (socket) => {
   console.log('New client connected:', socket.id);
 
   // User goes online
-  socket.on('user-online', (userId) => {
+  socket.on('user-online', async (userId) => {
     onlineUsers.set(userId, socket.id);
     console.log(`User ${userId} is online`);
     
@@ -64,6 +73,13 @@ io.on('connection', (socket) => {
       userId,
       status: 'online'
     });
+
+    // Join user's notification room
+    socket.join(`notifications_${userId}`);
+
+    // Send current notification count
+    const count = await getUnreadCount(userId);
+    socket.emit('notification-count', count);
   });
 
   // Join a conversation room
@@ -96,20 +112,38 @@ io.on('connection', (socket) => {
       const result = await messagesCollection.insertOne(message);
       message._id = result.insertedId;
 
-      // Emit to receiver
+      // Get sender info for notification
+      const sender = await usersCollection.findOne({ uid: senderId });
+      
+      // Create notification for receiver
+      const notification = {
+        userId: receiverId,
+        type: 'new_message',
+        title: 'New Message',
+        message: content.substring(0, 100) + (content.length > 100 ? '...' : ''),
+        senderId,
+        senderName: sender?.displayName || 'Someone',
+        senderPhotoURL: sender?.photoURL,
+        targetId: conversationId,
+        targetType: 'message',
+        read: false,
+        createdAt: new Date()
+      };
+
+      await notificationsCollection.insertOne(notification);
+
+      // Emit notification to receiver
+      const receiverSocketId = onlineUsers.get(receiverId);
+      if (receiverSocketId) {
+        io.to(receiverSocketId).emit('new-notification', notification);
+        io.to(`notifications_${receiverId}`).emit('notification-count', await getUnreadCount(receiverId));
+      }
+
+      // Emit to conversation
       io.to(conversationId).emit('receive-message', message);
       
       // Emit to sender (for confirmation)
       socket.emit('message-sent', message);
-
-      // Notify receiver if not in conversation
-      const receiverSocketId = onlineUsers.get(receiverId);
-      if (receiverSocketId) {
-        io.to(receiverSocketId).emit('new-message-notification', {
-          senderId,
-          content: content.substring(0, 50) + (content.length > 50 ? '...' : '')
-        });
-      }
 
     } catch (error) {
       console.error('Error sending message:', error);
@@ -148,8 +182,42 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Mark notification as read
+  socket.on('mark-notification-read', async (data) => {
+    try {
+      const { notificationId, userId } = data;
+      
+      await notificationsCollection.updateOne(
+        { _id: new ObjectId(notificationId), userId },
+        { $set: { read: true, readAt: new Date() } }
+      );
+
+      // Emit updated count
+      io.to(`notifications_${userId}`).emit('notification-count', await getUnreadCount(userId));
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  });
+
+  // Mark all notifications as read
+  socket.on('mark-all-notifications-read', async (data) => {
+    try {
+      const { userId } = data;
+      
+      await notificationsCollection.updateMany(
+        { userId, read: false },
+        { $set: { read: true, readAt: new Date() } }
+      );
+
+      // Emit updated count
+      io.to(`notifications_${userId}`).emit('notification-count', 0);
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
+  });
+
   // User goes offline
-  socket.on('disconnect', () => {
+  socket.on('disconnect', async () => {
     // Find user by socketId and remove
     for (const [userId, socketId] of onlineUsers.entries()) {
       if (socketId === socket.id) {
@@ -174,6 +242,7 @@ async function run() {
     usersCollection = db.collection("users");
     connectionsCollection = db.collection("connections");
     messagesCollection = db.collection("messages");
+    notificationsCollection = db.collection("notifications");
     paymentsCollection = db.collection("payments");
     atsScoresCollection = db.collection("ats_scores");
     interviewsCollection = db.collection("interviews");
@@ -199,12 +268,16 @@ function initializeRoutes() {
   app.use('/api/users', userRoutes);
 
   // Connections Routes
-  const connectionRoutes = require('./routes/connections')(usersCollection, connectionsCollection);
+  const connectionRoutes = require('./routes/connections')(usersCollection, connectionsCollection, notificationsCollection);
   app.use('/api/connections', connectionRoutes);
 
   // Messages Routes
   const messageRoutes = require('./routes/messages')(usersCollection, connectionsCollection, messagesCollection);
   app.use('/api/messages', messageRoutes);
+
+  // Notifications Routes
+  const notificationRoutes = require('./routes/notifications')(usersCollection, notificationsCollection);
+  app.use('/api/notifications', notificationRoutes);
 
   // Payment Routes
   const paymentRoutes = require('./routes/payments')(usersCollection, paymentsCollection);
