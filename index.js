@@ -238,7 +238,7 @@ io.on('connection', (socket) => {
 async function run() {
   try {
     await client.connect();
-    db = client.db(process.env.DB_NAME || "career_connect");
+    db = client.db("career_connect");
     usersCollection = db.collection("users");
     connectionsCollection = db.collection("connections");
     messagesCollection = db.collection("messages");
