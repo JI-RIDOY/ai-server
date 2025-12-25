@@ -1,3 +1,4 @@
+// backend/routes/users.js
 const { ObjectId } = require('mongodb');
 
 module.exports = (usersCollection) => {
@@ -56,6 +57,7 @@ module.exports = (usersCollection) => {
                     ...userData,
                     userType: userData.userType || 'jobSeeker', // Default to jobSeeker
                     package: 'basic', // Default package
+                    profileCompleted: false,
                     createdAt: new Date(),
                     updatedAt: new Date()
                 };
@@ -78,7 +80,7 @@ module.exports = (usersCollection) => {
         }
     });
 
-    // Get user by UID
+    // Get user by UID - Return 404 if not found
     router.get('/:uid', async (req, res) => {
         try {
             const { uid } = req.params;
@@ -88,7 +90,7 @@ module.exports = (usersCollection) => {
             if (!user) {
                 return res.status(404).json({
                     success: false,
-                    message: 'User not found'
+                    message: 'User not found in database'
                 });
             }
 
@@ -214,6 +216,27 @@ module.exports = (usersCollection) => {
             });
         } catch (error) {
             console.error('Error checking user type:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error',
+                error: error.message
+            });
+        }
+    });
+
+    // Check if user exists (for login validation)
+    router.get('/:uid/exists', async (req, res) => {
+        try {
+            const { uid } = req.params;
+
+            const user = await usersCollection.findOne({ uid });
+
+            res.json({
+                success: true,
+                exists: !!user
+            });
+        } catch (error) {
+            console.error('Error checking user existence:', error);
             res.status(500).json({
                 success: false,
                 message: 'Internal server error',

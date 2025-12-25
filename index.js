@@ -12,14 +12,14 @@ const port = process.env.PORT || 5000;
 // Socket.io configuration
 const io = new Server(server, {
   cors: {
-    origin: "https://creative-career-ai.web.app",
+    origin: " http://localhost:5173",
     credentials: true
   }
 });
 
 // Middleware
 app.use(cors({
-  origin: "https://creative-career-ai.web.app",
+  origin: " http://localhost:5173",
   credentials: true
 }));
 app.use(express.json());
