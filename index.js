@@ -67,7 +67,7 @@ io.on('connection', (socket) => {
   socket.on('user-online', async (userId) => {
     onlineUsers.set(userId, socket.id);
     console.log(`User ${userId} is online`);
-    
+
     // Notify connections that user is online
     socket.broadcast.emit('user-status-changed', {
       userId,
@@ -98,7 +98,7 @@ io.on('connection', (socket) => {
   socket.on('send-message', async (data) => {
     try {
       const { conversationId, senderId, receiverId, content } = data;
-      
+
       // Save message to database
       const message = {
         conversationId,
@@ -114,7 +114,7 @@ io.on('connection', (socket) => {
 
       // Get sender info for notification
       const sender = await usersCollection.findOne({ uid: senderId });
-      
+
       // Create notification for receiver
       const notification = {
         userId: receiverId,
@@ -141,7 +141,7 @@ io.on('connection', (socket) => {
 
       // Emit to conversation
       io.to(conversationId).emit('receive-message', message);
-      
+
       // Emit to sender (for confirmation)
       socket.emit('message-sent', message);
 
@@ -164,7 +164,7 @@ io.on('connection', (socket) => {
   socket.on('mark-read', async (data) => {
     try {
       const { conversationId, userId } = data;
-      
+
       await messagesCollection.updateMany(
         {
           conversationId,
@@ -186,7 +186,7 @@ io.on('connection', (socket) => {
   socket.on('mark-notification-read', async (data) => {
     try {
       const { notificationId, userId } = data;
-      
+
       await notificationsCollection.updateOne(
         { _id: new ObjectId(notificationId), userId },
         { $set: { read: true, readAt: new Date() } }
@@ -203,7 +203,7 @@ io.on('connection', (socket) => {
   socket.on('mark-all-notifications-read', async (data) => {
     try {
       const { userId } = data;
-      
+
       await notificationsCollection.updateMany(
         { userId, read: false },
         { $set: { read: true, readAt: new Date() } }
@@ -223,7 +223,7 @@ io.on('connection', (socket) => {
       if (socketId === socket.id) {
         onlineUsers.delete(userId);
         console.log(`User ${userId} disconnected`);
-        
+
         // Notify connections that user is offline
         socket.broadcast.emit('user-status-changed', {
           userId,
@@ -296,6 +296,10 @@ function initializeRoutes() {
 
   const jobRoutes = require('./routes/jobs')(jobsCollection, applicationsCollection, usersCollection);
   app.use('/api/jobs', jobRoutes);
+
+  // Resume Routes
+  const resumeRoutes = require('./routes/resumes')(db);
+  app.use('/api/resumes', resumeRoutes);
 
   console.log("✅ Routes initialized successfully!");
 }
