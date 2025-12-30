@@ -530,5 +530,41 @@ module.exports = (db) => {
     }
   });
 
+  router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validate ObjectId
+    if (!require('mongodb').ObjectId.isValid(id)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid resume ID' 
+      });
+    }
+
+    const result = await resumesCollection.deleteOne({ 
+      _id: new require('mongodb').ObjectId(id) 
+    });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Resume not found' 
+      });
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Resume deleted successfully' 
+    });
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
   return router;
 };
